@@ -132,6 +132,7 @@ body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min
 .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+.chips-row{padding:10px 24px 0;display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;max-height:90px;overflow-y:auto;}
 </style>
 </head>
 <body>
@@ -176,9 +177,14 @@ body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min
     <span class="chip" onclick="ask('Who is staying at the hotel?')">🏨 Hotel</span>
     <span class="chip" onclick="ask('Who are the CAB members?')">⭐ CAB</span>
     <span class="chip" onclick="ask('Show me the sponsors')">💼 Sponsors</span>
+    <span class="chip" onclick="ask('Which companies are attending?')">🏢 Companies</span>
+    <span class="chip" onclick="ask('Who are the account owners?')">👤 Account owners</span>
     <span class="chip" onclick="ask('What are the food preferences?')">🍽️ Food prefs</span>
     <span class="chip" onclick="ask('Who cancelled?')">❌ Cancelled</span>
     <span class="chip" onclick="ask('Give me a breakdown by account type')">📊 Breakdown</span>
+    <span class="chip" onclick="ask('Show training registrations')">🛠️ Training</span>
+    <span class="chip" onclick="ask('Who has VIP bags?')">🎁 VIP bags</span>
+    <span class="chip" onclick="ask('Show help')">❓ All queries</span>
   </div>
   <div class="input-bar">
     <div class="input-row">
@@ -272,55 +278,169 @@ function fmt(items,fn){return items.map((r,i)=>'• '+fn(r)).join('<br>');}
 function answer(query){
   const q=query.toLowerCase().trim();
   let a='';
-  if(q.includes('speaker')){
+
+  // ── Help / query reference ──
+  if(q.includes('help')||q.includes('what can')||q.includes('all quer')||q.includes('show quer')){
+    a=`<b>📋 Everything you can ask:</b><br><br>
+<b>🎤 Speakers</b><br>&nbsp;&nbsp;• "Who are the speakers?"<br>&nbsp;&nbsp;• "speakers for [topic]"<br><br>
+<b>✅ Confirmed attendees</b><br>&nbsp;&nbsp;• "Who confirmed attendance?"<br>&nbsp;&nbsp;• "Who confirmed from [company]?"<br><br>
+<b>🏢 Companies</b><br>&nbsp;&nbsp;• "Which companies are attending?"<br>&nbsp;&nbsp;• "companies from [account type, e.g. Customers]"<br><br>
+<b>👤 Account owners</b><br>&nbsp;&nbsp;• "Who are the account owners?"<br>&nbsp;&nbsp;• "account owner for [name or company]"<br><br>
+<b>🏨 Hotel</b><br>&nbsp;&nbsp;• "Who is staying at the hotel?"<br>&nbsp;&nbsp;• "hotel for [name]"<br><br>
+<b>⭐ CAB members</b><br>&nbsp;&nbsp;• "Who are the CAB members?"<br><br>
+<b>💼 Sponsors</b><br>&nbsp;&nbsp;• "Show me the sponsors"<br><br>
+<b>🍽️ Food preferences</b><br>&nbsp;&nbsp;• "What are the food preferences?"<br>&nbsp;&nbsp;• "who wants chicken / vegetarian / beef"<br><br>
+<b>❌ Cancelled</b><br>&nbsp;&nbsp;• "Who cancelled?"<br><br>
+<b>🛠️ Training / workshops</b><br>&nbsp;&nbsp;• "Show training registrations"<br>&nbsp;&nbsp;• "who is in session 1 / session 2"<br><br>
+<b>🎁 VIP bags</b><br>&nbsp;&nbsp;• "Who has VIP bags?"<br><br>
+<b>📊 Stats &amp; breakdown</b><br>&nbsp;&nbsp;• "Give me a breakdown by account type"<br>&nbsp;&nbsp;• "how many attendees total?"<br><br>
+<b>🏢 Celona team</b><br>&nbsp;&nbsp;• "Show Celona team" / "internal team"<br><br>
+<b>📌 PAC members</b><br>&nbsp;&nbsp;• "Who are the PAC members?"<br><br>
+<b>🔍 Free search</b><br>&nbsp;&nbsp;• Any name, company, or email — e.g. "Google", "Jason", "marathon"`;
+
+  // ── Speakers ──
+  }else if(q.includes('speaker')){
     const spk=attendees.filter(r=>r['Speakers']);
     a=`<b>${spk.length} speakers</b> (${spk.filter(r=>r['Speakers']==='Y').length} confirmed, ${spk.filter(r=>r['Speakers']==='TBD').length} TBD):<br><br>`;
-    a+=fmt(spk,r=>`<b>${r['Name']}</b> (${r['Company']})${r['Speaker topic']?' — '+r['Speaker topic']:''}${r['Speakers']==='TBD'?' [TBD]':''}`);
+    a+=fmt(spk,r=>`<b>${r['Name']}</b> (${r['Company']})${r['Speaker topic']?' — '+r['Speaker topic']:''}${r['Speakers']==='TBD'?' <span style="color:var(--muted)">[TBD]</span>':''}`);
+
+  // ── Hotel ──
   }else if(q.includes('hotel')||q.includes('stay')||q.includes('hayes')){
-    a=`<b>${hotel.length} hotel reservations</b> at Hayes Mansion:<br><br>`;
-    a+=fmt(hotel,r=>`<b>${r['Name']}</b> (${r['Company']}) — In: ${r['Check-In']||'?'}, Out: ${r['Checkout']||'?'} · ${r['Reservation Status']}`);
+    // optional: filter by name
+    const nameHint=q.replace(/hotel|stay|staying|hayes|who|is|at|the/g,'').trim();
+    let rows=hotel;
+    if(nameHint.length>1) rows=hotel.filter(r=>(r['Name']||'').toLowerCase().includes(nameHint)||(r['Company']||'').toLowerCase().includes(nameHint));
+    a=`<b>${rows.length} hotel reservation${rows.length!==1?'s':''}</b> at Hayes Mansion:<br><br>`;
+    a+=fmt(rows,r=>`<b>${r['Name']}</b> (${r['Company']}) — In: ${r['Check-In']||'?'}, Out: ${r['Checkout']||'?'} · ${r['Reservation Status']||''}`);
+
+  // ── Sponsors ──
   }else if(q.includes('sponsor')){
     a=`<b>${sponsors.length} sponsors:</b><br><br>`;
-    a+=fmt(sponsors,r=>`<b>${r['Company']}</b> — ${r['Sponsorship level']} | ${r['Key Contact name']} (${r['Key Contact email ']||''})`);
+    a+=fmt(sponsors,r=>`<b>${r['Company']}</b> — ${r['Sponsorship level']||''} | ${r['Key Contact name']||''} (${r['Key Contact email ']||''})`);
+
+  // ── CAB ──
   }else if(q.includes('cab')){
     const cab=attendees.filter(r=>isYes(r,'CAB'));
     a=`<b>CAB Members (${cab.length}):</b><br><br>`+fmt(cab,r=>`<b>${r['Name']}</b> (${r['Company']})`);
-  }else if(q.includes('confirm')||q.includes('rsvp')||q.includes('attending')){
-    const conf=attendees.filter(r=>r['Frequency 2026 - Attendance Confirmation']&&r['Frequency 2026 - Attendance Confirmation'].toLowerCase().includes('yes'));
-    a=`<b>${conf.length} confirmed</b> out of ${attendees.length} total (${attendees.length-conf.length} pending):<br><br>`;
+
+  // ── PAC ──
+  }else if(q.includes('pac')){
+    const pac=attendees.filter(r=>isYes(r,'PAC'));
+    a=`<b>PAC Members (${pac.length}):</b><br><br>`+fmt(pac,r=>`<b>${r['Name']}</b> (${r['Company']})`);
+
+  // ── Companies ──
+  }else if(q.includes('compan')){
+    let pool=attendees;
+    // optional: filter by account type
+    const typeHint=q.replace(/compan(ies|y)?|which|are|attending|show|list|from|all/g,'').trim();
+    if(typeHint.length>1) pool=attendees.filter(r=>(r['Account Record Type']||'').toLowerCase().includes(typeHint));
+    const types={};
+    pool.forEach(r=>{
+      const c=r['Company']||'Unknown';
+      const t=r['Account Record Type']||'Unknown';
+      if(!types[c]) types[c]={count:0,type:t};
+      types[c].count++;
+    });
+    const sorted=Object.entries(types).sort((a,b)=>a[0].localeCompare(b[0]));
+    a=`<b>${sorted.length} companies</b>${typeHint.length>1?' matching "'+typeHint+'"':''} (${pool.length} attendees total):<br><br>`;
+    a+=sorted.map(([co,info])=>`• <b>${co}</b> <span style="color:var(--muted)">(${info.count} person${info.count!==1?'s':''} · ${info.type})</span>`).join('<br>');
+
+  // ── Account owners ──
+  }else if(q.includes('account owner')||q.includes('who owns')||q.includes('owner for')||q.includes('owners')){
+    // optional: filter by name or company
+    const hint=q.replace(/account|owner(s)?|who|owns?|for|show|list|all|the/g,'').trim();
+    let pool=attendees;
+    if(hint.length>1) pool=attendees.filter(r=>
+      (r['Name']||'').toLowerCase().includes(hint)||
+      (r['Company']||'').toLowerCase().includes(hint)
+    );
+    if(hint.length>1 && pool.length===0){
+      a=`No attendees found matching "<b>${hint}</b>".`;
+    } else if(hint.length>1){
+      a=`<b>Account owner info for "${hint}" (${pool.length} result${pool.length!==1?'s':''}):</b><br><br>`;
+      a+=fmt(pool,r=>`<b>${r['Name']}</b> (${r['Company']}) — Owner: <b>${r['Account owner']||'N/A'}</b>${r['CC Emails']?' · CC: '+r['CC Emails']:''}`);
+    } else {
+      // summary: owners and their accounts
+      const ownerMap={};
+      attendees.forEach(r=>{
+        const o=r['Account owner']||'Unassigned';
+        if(!ownerMap[o]) ownerMap[o]=[];
+        ownerMap[o].push(r['Company']||r['Name']);
+      });
+      const sorted=Object.entries(ownerMap).sort((a,b)=>b[1].length-a[1].length);
+      a=`<b>Account owners (${sorted.length} owners across ${attendees.length} attendees):</b><br><br>`;
+      a+=sorted.map(([o,cos])=>{
+        const unique=[...new Set(cos)];
+        return `• <b>${o}</b> — ${unique.length} account${unique.length!==1?'s':''}: <span style="color:var(--muted)">${unique.slice(0,4).join(', ')}${unique.length>4?' +' +(unique.length-4)+' more':''}</span>`;
+      }).join('<br>');
+      a+=`<br><br><span style="color:var(--muted);font-size:12px">Tip: ask "account owner for [name or company]" to look up a specific person.</span>`;
+    }
+
+  // ── Confirmed attendees ──
+  }else if(q.includes('confirm')||q.includes('rsvp')||(q.includes('attending')&&!q.includes('compan'))){
+    const hint=q.replace(/confirm(ed)?|rsvp|attending|who|has|attendance|show|list/g,'').trim();
+    let conf=attendees.filter(r=>r['Frequency 2026 - Attendance Confirmation']&&r['Frequency 2026 - Attendance Confirmation'].toLowerCase().includes('yes'));
+    if(hint.length>1) conf=conf.filter(r=>(r['Company']||'').toLowerCase().includes(hint)||(r['Name']||'').toLowerCase().includes(hint));
+    a=`<b>${conf.length} confirmed</b>${hint.length>1?' from "'+hint+'"':' out of '+attendees.length+' total ('+( attendees.length-attendees.filter(r=>r['Frequency 2026 - Attendance Confirmation']&&r['Frequency 2026 - Attendance Confirmation'].toLowerCase().includes('yes')).length)+' pending)'}:<br><br>`;
     a+=fmt(conf,r=>`${r['Name']} (${r['Company']})`);
+
+  // ── VIP bags ──
   }else if(q.includes('vip')||q.includes('bag')){
     const vip=attendees.filter(r=>isYes(r,'VIP Bags'));
     a=`<b>${vip.length} VIP bag recipients:</b><br><br>`+fmt(vip,r=>`${r['Name']} (${r['Company']})`);
-  }else if(q.includes('food')||q.includes('meal')||q.includes('diet')||q.includes('chicken')||q.includes('beef')||q.includes('vegetar')){
+
+  // ── Food preferences ──
+  }else if(q.includes('food')||q.includes('meal')||q.includes('diet')||q.includes('chicken')||q.includes('beef')||q.includes('vegetar')||q.includes('vegan')||q.includes('prefer')){
+    const hint=q.replace(/food|preference(s)?|meal|diet|show|what|are|the/g,'').trim();
     const wf=attendees.filter(r=>r['Food Preference']);
-    const counts={};wf.forEach(r=>{const f=r['Food Preference'];counts[f]=(counts[f]||0)+1;});
-    a=`<b>Food preferences (${wf.length} responses):</b><br><br>`;
-    Object.entries(counts).sort((x,y)=>y[1]-x[1]).forEach(([f,c])=>{a+=`• ${f}: <b>${c}</b><br>`;});
-    a+=`<br>No preference / unspecified: ${attendees.length-wf.length}`;
+    if(hint.length>1){
+      // who specifically wants X
+      const matched=wf.filter(r=>(r['Food Preference']||'').toLowerCase().includes(hint));
+      a=`<b>${matched.length} people prefer "${hint}":</b><br><br>`+fmt(matched,r=>`${r['Name']} (${r['Company']}) — ${r['Food Preference']}`);
+    } else {
+      const counts={};wf.forEach(r=>{const f=r['Food Preference'];counts[f]=(counts[f]||0)+1;});
+      a=`<b>Food preferences (${wf.length} responses):</b><br><br>`;
+      Object.entries(counts).sort((x,y)=>y[1]-x[1]).forEach(([f,c])=>{a+=`• ${f}: <b>${c}</b><br>`;});
+      a+=`<br>No preference / unspecified: <b>${attendees.length-wf.length}</b>`;
+    }
+
+  // ── Cancelled ──
   }else if(q.includes('cancel')||q.includes('withdrew')||q.includes('withdrawn')){
     a=`<b>${cancelled.length} cancelled/withdrawn:</b><br><br>`+fmt(cancelled,r=>`${r['Name']} (${r['Company']})`);
-  }else if(q.includes('training')||q.includes('session 1')||q.includes('session 2')||q.includes('workshop')){
-    a=`<b>Training registrations (${training.length} total):</b> Session 1: ${training.filter(r=>r['Session']==='Session 1').length}, Session 2: ${training.filter(r=>r['Session']==='Session 2').length}<br><br>`;
-    a+=fmt(training,r=>`${r['Name']} (${r['Company']}) — ${r['Session']}`);
-  }else if(q.includes('breakdown')||q.includes('how many')||q.includes('count')||q.includes('total')||q.includes('stat')){
+
+  // ── Training ──
+  }else if(q.includes('training')||q.includes('session')||q.includes('workshop')||q.includes('hands-on')||q.includes('hands on')){
+    const hint=q.includes('session 1')||q.includes('session1')?'Session 1':q.includes('session 2')||q.includes('session2')?'Session 2':null;
+    let rows=hint?training.filter(r=>r['Session']===hint):training;
+    a=`<b>Training registrations${hint?' — '+hint:''} (${rows.length} total${!hint?': S1='+training.filter(r=>r['Session']==='Session 1').length+', S2='+training.filter(r=>r['Session']==='Session 2').length:''}):</b><br><br>`;
+    a+=fmt(rows,r=>`${r['Name']} (${r['Company']}) — ${r['Session']}`);
+
+  // ── Breakdown / stats ──
+  }else if(q.includes('breakdown')||q.includes('how many')||q.includes('count')||q.includes('total')||q.includes('stat')||q.includes('summary')){
     const types={};attendees.forEach(r=>{const t=r['Account Record Type']||'Unknown';types[t]=(types[t]||0)+1;});
     a=`<b>Attendee breakdown (${attendees.length} total):</b><br><br>`;
     Object.entries(types).sort((x,y)=>y[1]-x[1]).forEach(([t,c])=>{a+=`• ${t}: <b>${c}</b><br>`;});
     const conf=attendees.filter(r=>r['Frequency 2026 - Attendance Confirmation']&&r['Frequency 2026 - Attendance Confirmation'].toLowerCase().includes('yes')).length;
-    a+=`<br>✅ Confirmed: <b>${conf}</b> &nbsp;|&nbsp; ⏳ Pending: <b>${attendees.length-conf}</b>`;
+    const vip=attendees.filter(r=>isYes(r,'VIP Bags')).length;
+    const cab=attendees.filter(r=>isYes(r,'CAB')).length;
+    a+=`<br>✅ Confirmed: <b>${conf}</b> &nbsp;|&nbsp; ⏳ Pending: <b>${attendees.length-conf}</b><br>`;
+    a+=`⭐ CAB: <b>${cab}</b> &nbsp;|&nbsp; 🎁 VIP Bags: <b>${vip}</b> &nbsp;|&nbsp; 🏨 Hotel: <b>${hotel.length}</b>`;
+
+  // ── Celona / internal team ──
   }else if(q.includes('celona')||q.includes('team')||q.includes('internal')||q.includes('employee')){
     a=`<b>Celona team (${celona.length}):</b><br><br>`+celona.map(r=>`• <b>${r['Rajeev Shah']}</b> (${r['rajeev@celona.io']||''})`).join('<br>');
+
+  // ── Free search ──
   }else{
-    const words=q.split(' ').filter(w=>w.length>1);
+    const words=q.split(/\s+/).filter(w=>w.length>2);
     const found=[...attendees,...cancelled].filter(r=>
-      Object.values(r).filter(Boolean).join(' ').toLowerCase().split(/\s+/).some(w=>words.some(qw=>w.includes(qw)))
+      words.some(qw=>Object.values(r).filter(Boolean).join(' ').toLowerCase().includes(qw))
     );
     if(found.length){
       a=`<b>${found.length} result${found.length!==1?'s':''} for "${query}":</b><br><br>`;
-      a+=fmt(found,r=>`<b>${r['Name']}</b> (${r['Company']}) — ${r['Account Record Type']||''}`);
+      a+=fmt(found,r=>`<b>${r['Name']}</b> (${r['Company']}) — ${r['Account Record Type']||''} · Owner: ${r['Account owner']||'N/A'}`);
     }else{
-      a=`I couldn't find anything for <b>"${query}"</b>.<br><br>Try asking about: <i>speakers, hotel, confirmed attendees, CAB, food preferences, VIP bags, sponsors, training, cancelled, or a specific name/company.</i>`;
+      a=`I couldn't find anything for <b>"${query}"</b>.<br><br>Ask <b>"show help"</b> to see all available queries, or try a name, company, or email.`;
     }
   }
   return a;
